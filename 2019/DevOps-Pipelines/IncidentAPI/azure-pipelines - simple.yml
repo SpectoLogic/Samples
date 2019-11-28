@@ -1,0 +1,64 @@
+# ASP.NET Core
+# Build and test ASP.NET Core projects targeting .NET Core.
+# Add steps that run tests, create a NuGet package, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  azureSubscriptionConnection: 'Democonnection'
+  projects: '**/*.csproj'
+  testProjects: '**/*tests/*.csproj'
+  webProject: '**/IncidentAPI.csproj'
+  buildConfiguration: 'Release'
+  buildPlatform: 'Any CPU'
+  webAppName: 'demoincidents'
+
+steps:
+- task: DotNetCoreCLI@2
+  displayName: Build
+  inputs:
+    projects: $(projects)
+    arguments: '--configuration $(BuildConfiguration)'
+
+- task: DotNetCoreCLI@2
+  displayName: Test
+  inputs:
+    command: test
+    projects: $(testProjects)
+
+- task: DotNetCoreCLI@2
+  displayName: Publish
+  inputs:
+    command: publish
+    projects: $(webProject)
+    arguments: '--configuration $(BuildConfiguration) --output $(build.artifactstagingdirectory)'
+    publishWebProjects: true
+    zipAfterPublish: true
+    modifyOutputPath: true
+- task: PublishPipelineArtifact@1
+  displayName : 'Publish Pipeline Artifact'
+  inputs:
+    targetPath: '$(build.artifactstagingdirectory)'
+    artifact: drop
+    publishLocation: pipeline
+
+- task: DownloadPipelineArtifact@2
+  displayName: 'Download Pipeline Artifact'
+  inputs:
+    buildType: 'current'
+    artifactName: 'drop'
+    targetPath: '$(Pipeline.Workspace)/drop'
+
+- task: AzureRmWebAppDeployment@4
+  inputs:
+    ConnectionType: 'AzureRM'
+    azureSubscription: $(azureSubscriptionConnection)
+    appType: 'webApp'
+    WebAppName: $(webAppName)
+    packageForLinux: '$(Pipeline.Workspace)/drop/*.zip'
+
